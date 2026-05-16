@@ -206,34 +206,41 @@ fusermount -u mnt
 ### Output
 
 ```
-$ ls mnt/
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cp "/mnt/c/Users/Fujitsu Lifebook/Downloads/amba_files.zip" ~/SISOP-4-2026-IT-025/soal_1/amba_files.zip
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls
+amba_files.zip  kenz_rescue.c
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ unzip amba_files.zip
+Archive:  amba_files.zip
+   creating: amba_files/
+  inflating: amba_files/4.txt
+  inflating: amba_files/5.txt
+  inflating: amba_files/3.txt
+  inflating: amba_files/7.txt
+  inflating: amba_files/6.txt
+  inflating: amba_files/2.txt
+  inflating: amba_files/1.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ rm amba_files.zip
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ mkdir mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ./kenz_rescue amba_files mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls mnt
 1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt  tujuan.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/1.txt
+=== HARI 1 ===
 
-$ ls amba_files/
-1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt
+Hari pertama ekspedisi pertama. Saya berangkat dari Tembok Ratapan Keputih jam 5 pagi.
+Tujuan saya: Petilasan Puncak Gunung Kawi, untuk meng-update firmware Pusaka Pesugihan v2.7 milik mendiang paman.
 
-$ for i in 1 2 3 4 5 6 7; do diff mnt/$i.txt amba_files/$i.txt && echo "$i.txt OK"; done
+KOORD: -7.957
+
+Sampai nanti, paman.
+-- Amba
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ diff mnt/1.txt amba_files/1.txt && echo "1.txt OK"
 1.txt OK
-2.txt OK
-3.txt OK
-4.txt OK
-5.txt OK
-6.txt OK
-7.txt OK
-
-$ stat mnt/tujuan.txt
-  File: mnt/tujuan.txt
-  Size: 66        Blocks: 0    IO Block: 4096  regular file
-  Device: 0,101   Inode: 9     Links: 1
-  Access: (0444/-r--r--r--)  Uid: (0/root)  Gid: (0/root)
-  Modify: 1970-01-01 07:00:00.000000000 +0700
-
-$ cat mnt/tujuan.txt
-KOORD: -7.9305° LS, 112.5943° BT
-KOORD: Fragmen 2 ...
-... (koordinat ritual lengkap dari 7 file) ...
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/tujuan.txt
+Tujuan Mas Amba:  -7.957 382728 443728,  112.469 8688227961,  23: 59 WIB
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ fusermount -u mnt
 ```
-
 ### Kendala
 
 Kendala yang ditemui adalah memastikan `argv` di-shift dengan benar sebelum diserahkan ke `fuse_main`, karena FUSE mengharapkan posisi `mount_directory` tepat di `argv[1]`. Selain itu, perlu dipastikan `generate_tujuan_content()` selalu dipanggil setelah `source_dir` terisi, dan buffer hasil selalu di-`free()` untuk mencegah memory leak pada operasi read berulang.
