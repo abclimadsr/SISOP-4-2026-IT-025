@@ -423,6 +423,36 @@ CMD ["./server"]
 ### Cara Menjalankan
 
 ```bash
+Terminal 1 (Menjalankan FUSE lokal)
+# Kompilasi kode FUSE
+gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+
+# Jalankan FUSE langsung ke folder fuse_mount lokal
+./fuse -f fuse_mount
+
+Terminal 2 (Menjalankan Docker & Client)
+# Berikan izin eksekusi pada server
+chmod +x server
+
+# Build image Docker
+docker build -t soal-2-modul-4-sisop .
+
+# Hapus container lama jika ada sisa bentrok
+docker rm -f db_app 2>/dev/null
+
+# Jalankan container dengan bind mount ke $(pwd)/fuse_mount
+docker run -d \
+  --privileged \
+  --name db_app \
+  -p 9000:9000 \
+  -v $(pwd)/fuse_mount:/app/db \
+  soal-2-modul-4-sisop
+
+Pembersihan
+docker stop db_app && docker rm db_app
+fusermount -u fuse_mount
+
+
 # 1. Compile fuse dan client
 gcc -Wall `pkg-config fuse --cflags` fuse.c -o fuse `pkg-config fuse --libs`
 gcc -Wall client.c -o client
@@ -433,23 +463,24 @@ mkdir -p encrypted_storage fuse_mount
 
 # 3. Test enkripsi (Soal 2c)
 echo "halo" > fuse_mount/halo.txt
-cat fuse_mount/halo.txt          # Output: halo (terdekripsi)
-xxd encrypted_storage/halo.txt.enc   # Output: byte terenkripsi XOR 0x76
+cat fuse_mount/halo.txt          # Output: halo (terdekripsi)
+xxd encrypted_storage/halo.txt.enc   # Output: byte terenkripsi XOR 0x76
 
 # 4. Buat direktori tests dan taruh notes.csv.env (Soal 2d)
 mkdir encrypted_storage/tests
 cp notes.csv.env encrypted_storage/tests/
-cat fuse_mount/tests/notes.csv   # harus terbaca terdekripsi
+cat fuse_mount/tests/notes.csv   # harus terbaca terdekripsi
 
 # 5. Build Docker image
 docker build -t soal-2-modul-4-sisop .
 
 # 6. Jalankan container dengan bind mount
 docker run -d --name db_app -p 9000:9000 \
-  -v $(pwd)/fuse_mount:/app/db soal-2-modul-4-sisop
+  -v $(pwd)/fuse_mount:/app/db soal-2-modul-4-sisop
 
 # 7. Gunakan client
 ./client
+kemarin bagian mana lagi yang saya lakukan, apakah ada diantara ini
 ```
 
 ### Output
