@@ -486,6 +486,78 @@ kemarin bagian mana lagi yang saya lakukan, apakah ada diantara ini
 ### Output
 
 ```
+TERMINAL 1
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cd ../soal_2
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ls
+Dockerfile  client.c  encrypted_storage  fuse.c  fuse_mount  server
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./fuse -f fuse_mount
+
+TERMINAL 2
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ mount | grep fuse_mount
+/home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse on /home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse_mount type fuse.fuse (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
+5 directories, 9 files
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ echo "halo" > fuse_mount/halo.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat fuse_mount/halo.txt
+halo
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat encrypted_storage/halo.txt.enc
+␦|tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker build -t soal-2-modul-4-sisop .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  61.95kB
+Step 1/9 : FROM ubuntu:latest
+ ---> f3d28607ddd7
+Step 2/9 : RUN apt-get update &&     apt-get install -y         build-essential         libfuse-dev         fuse         pkg-config         ca-certificates     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 36b4bca5c3e2
+Step 3/9 : WORKDIR /app
+ ---> Using cache
+ ---> bdaa8523c0d5
+Step 4/9 : COPY . /app
+ ---> 62c0a18e2d77
+Step 5/9 : RUN gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+ ---> Running in 2409b53df0a2
+ ---> Removed intermediate container 2409b53df0a2
+ ---> 9f6742a218a3
+Step 6/9 : RUN gcc -Wall client.c -o client
+ ---> Running in 6cfc47bbe7c6
+ ---> Removed intermediate container 6cfc47bbe7c6
+ ---> 9725e903bdf7
+Step 7/9 : RUN mkdir -p /app/db
+ ---> Running in 457f871e1cc8
+ ---> Removed intermediate container 457f871e1cc8
+ ---> 143de9dca086
+Step 8/9 : EXPOSE 9000
+ ---> Running in eec992164362
+ ---> Removed intermediate container eec992164362
+ ---> 263d074e6079
+Step 9/9 : CMD ["./server"]
+ ---> Running in d26740b22710
+ ---> Removed intermediate container d26740b22710
+ ---> 8c51dd989e4c
+Successfully built 8c51dd989e4c
+Successfully tagged soal-2-modul-4-sisop:latest
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker run -d   --privileged   --name db_app   -p 9000:9000   -v $(pwd)/fuse_mount:/app/db   soal-2-modul-4-sisop
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker ps
+CONTAINER ID   IMAGE                  COMMAND      CREATED          STATUS          PORTS                                         NAMES
+d4b049c9674d   soal-2-modul-4-sisop   "./server"   12 seconds ago   Up 12 seconds   0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp   db_app
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc client.c -o client
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./client
+Connected to DB Server on port 9000
+Type HELP for available commands
+Type EXIT or QUIT to exit
+
+db > EXIT
+Disconnecting...
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker stop db_app && docker rm db_app
+db_app
+db_app
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ fusermount -u fuse_mount
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ rm client
+
+
 $ ls fuse_mount/
 halo.txt
 
