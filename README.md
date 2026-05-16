@@ -480,7 +480,6 @@ docker run -d --name db_app -p 9000:9000 \
 
 # 7. Gunakan client
 ./client
-kemarin bagian mana lagi yang saya lakukan, apakah ada diantara ini
 ```
 
 ### Output
