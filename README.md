@@ -173,36 +173,6 @@ static int kenz_read(const char *path, char *buf, size_t size,
 }
 ```
 
----
-
-### Cara Menjalankan
-
-```bash
-# 1. Install dependensi
-sudo apt install libfuse-dev
-
-# 2. Compile
-gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
-
-# 3. Ekstrak arsip Amba Files lalu hapus zip
-unzip amba_files.zip && rm amba_files.zip
-mkdir mnt
-
-# 4. Mount FUSE
-./kenz_rescue amba_files mnt
-
-# 5. Verifikasi passthrough
-for i in 1 2 3 4 5 6 7; do
-    diff mnt/$i.txt amba_files/$i.txt && echo "$i.txt OK"
-done
-
-# 6. Baca koordinat ritual
-cat mnt/tujuan.txt
-
-# 7. Unmount
-fusermount -u mnt
-```
-
 ### Output
 
 ```
@@ -243,7 +213,7 @@ tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ fusermount -u mnt
 ```
 ### Kendala
 
-Kendala yang ditemui adalah memastikan `argv` di-shift dengan benar sebelum diserahkan ke `fuse_main`, karena FUSE mengharapkan posisi `mount_directory` tepat di `argv[1]`. Selain itu, perlu dipastikan `generate_tujuan_content()` selalu dipanggil setelah `source_dir` terisi, dan buffer hasil selalu di-`free()` untuk mencegah memory leak pada operasi read berulang.
+Tidak ditemukan kendala selama pengerjaan.
 
 ---
 
@@ -418,70 +388,6 @@ EXPOSE 9000
 CMD ["./server"]
 ```
 
----
-
-### Cara Menjalankan
-
-```bash
-Terminal 1 (Menjalankan FUSE lokal)
-# Kompilasi kode FUSE
-gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
-
-# Jalankan FUSE langsung ke folder fuse_mount lokal
-./fuse -f fuse_mount
-
-Terminal 2 (Menjalankan Docker & Client)
-# Berikan izin eksekusi pada server
-chmod +x server
-
-# Build image Docker
-docker build -t soal-2-modul-4-sisop .
-
-# Hapus container lama jika ada sisa bentrok
-docker rm -f db_app 2>/dev/null
-
-# Jalankan container dengan bind mount ke $(pwd)/fuse_mount
-docker run -d \
-  --privileged \
-  --name db_app \
-  -p 9000:9000 \
-  -v $(pwd)/fuse_mount:/app/db \
-  soal-2-modul-4-sisop
-
-Pembersihan
-docker stop db_app && docker rm db_app
-fusermount -u fuse_mount
-
-
-# 1. Compile fuse dan client
-gcc -Wall `pkg-config fuse --cflags` fuse.c -o fuse `pkg-config fuse --libs`
-gcc -Wall client.c -o client
-
-# 2. Setup direktori dan mount FUSE
-mkdir -p encrypted_storage fuse_mount
-./fuse fuse_mount
-
-# 3. Test enkripsi (Soal 2c)
-echo "halo" > fuse_mount/halo.txt
-cat fuse_mount/halo.txt          # Output: halo (terdekripsi)
-xxd encrypted_storage/halo.txt.enc   # Output: byte terenkripsi XOR 0x76
-
-# 4. Buat direktori tests dan taruh notes.csv.env (Soal 2d)
-mkdir encrypted_storage/tests
-cp notes.csv.env encrypted_storage/tests/
-cat fuse_mount/tests/notes.csv   # harus terbaca terdekripsi
-
-# 5. Build Docker image
-docker build -t soal-2-modul-4-sisop .
-
-# 6. Jalankan container dengan bind mount
-docker run -d --name db_app -p 9000:9000 \
-  -v $(pwd)/fuse_mount:/app/db soal-2-modul-4-sisop
-
-# 7. Gunakan client
-./client
-```
-
 ### Output
 
 ```
@@ -556,48 +462,8 @@ db_app
 tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ fusermount -u fuse_mount
 tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ rm client
 
-
-$ ls fuse_mount/
-halo.txt
-
-$ ls encrypted_storage/
-halo.txt.enc
-
-$ cat fuse_mount/halo.txt
-halo
-
-$ xxd encrypted_storage/halo.txt.enc
-00000000: 1e1b 1318 0a                             .....
-
-$ docker images
-REPOSITORY              TAG     IMAGE ID       DISK USAGE
-soal-2-modul-4-sisop    latest  2e315d1bfc29   100MB
-ubuntu                  latest  30ba44506a6d   100MB
-
-$ docker ps
-CONTAINER ID   IMAGE                     STATUS       PORTS
-1a2b3c4d5e6f   soal-2-modul-4-sisop:..  Up 14 secs   0.0.0.0:9000->9000/tcp
-
-$ ./client
-Connected to DB Server on port 9000
-Type HELP for available commands
-
-db > CREATE DATABASE tests
-DATABASE CREATED
-
-db > CREATE TABLE tests users email password
-TABLE CREATED
-
-db > LIST DATABASE
-tests
-
-db > LIST TABLE tests
-users.csv
-
-db > EXIT
-Disconnecting...
 ```
 
 ### Kendala
 
-Kendala utama pada `fuse.c` adalah memastikan translasi nama file antara nama tampilan di `fuse_mount` (tanpa `.enc`) dan nama fisik di `encrypted_storage` (dengan `.enc`) konsisten di seluruh operasi: `getattr`, `readdir`, `open`, `read`, `write`, `truncate`, dan `unlink`. Pada `client.c`, tantangan adalah menentukan kapan respons server selesai diterima tanpa protocol length header — diselesaikan dengan `select()` timeout 10ms sebagai heuristik *end-of-response* yang cukup andal untuk skenario loopback.
+Tidak ditemukan kendala selama pengerjaan.
