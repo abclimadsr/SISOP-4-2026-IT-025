@@ -184,10 +184,11 @@ int main(int argc, char *argv[]) {
 **Kompilasi dan persiapan**
 
 ```bash
-$ gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
-$ ls
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cp "/mnt/c/Users/Fujitsu Lifebook/Downloads/amba_files.zip" ~/SISOP-4-2026-IT-025/soal_1/amba_files.zip
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls
 amba_files.zip  kenz_rescue.c
-$ unzip amba_files.zip
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ unzip amba_files.zip
 Archive:  amba_files.zip
    creating: amba_files/
   inflating: amba_files/4.txt
@@ -197,17 +198,17 @@ Archive:  amba_files.zip
   inflating: amba_files/6.txt
   inflating: amba_files/2.txt
   inflating: amba_files/1.txt
-$ rm amba_files.zip
-$ mkdir mnt
-$ ./kenz_rescue amba_files mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ rm amba_files.zip
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ mkdir mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ./kenz_rescue amba_files mnt
 ```
 
 **Listing mount point vs source directory**
 
 ```bash
-$ ls mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls mnt
 1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt  tujuan.txt
-$ ls amba_files
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls amba_files
 1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt
 ```
 
@@ -216,7 +217,7 @@ $ ls amba_files
 **Verifikasi passthrough dan koordinat ritual**
 
 ```bash
-$ cat mnt/1.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/1.txt
 === HARI 1 ===
 
 Hari pertama ekspedisi pertama. Saya berangkat dari Tembok Ratapan Keputih jam 5 pagi.
@@ -226,11 +227,11 @@ KOORD: -7.957
 
 Sampai nanti, paman.
 -- Amba
-$ diff mnt/1.txt amba_files/1.txt && echo "1.txt OK"
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ diff mnt/1.txt amba_files/1.txt && echo "1.txt OK"
 1.txt OK
-$ cat mnt/tujuan.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/tujuan.txt
 Tujuan Mas Amba:  -7.957 382728 443728,  112.469 8688227961,  23: 59 WIB
-$ fusermount -u mnt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ fusermount -u mnt
 ```
 
 Isi `mnt/1.txt` identik byte-per-byte dengan `amba_files/1.txt` (diff tidak menghasilkan perbedaan). Isi `tujuan.txt` dirangkai secara *on-the-fly* dari baris `KOORD:` di ketujuh file tanpa pernah ditulis ke disk. Untuk unmount FUSE digunakan `fusermount -u [direktori tujuan]` yang menginformasikan ke sistem untuk menyelesaikan semua operasi yang masih tertunda sebelum melepas filesystem.
@@ -403,10 +404,8 @@ CMD ["./server"]
 **Terminal 1 — Compile dan mount FUSE**
 
 ```bash
-$ gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
-$ ls
-Dockerfile  client.c  encrypted_storage  fuse.c  fuse_mount  server
-$ ./fuse -f fuse_mount
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./fuse -f fuse_mount
 ```
 
 Flag `-f` digunakan untuk menjaga FUSE tetap berjalan di foreground sehingga memudahkan debugging dengan `printf`.
@@ -414,13 +413,13 @@ Flag `-f` digunakan untuk menjaga FUSE tetap berjalan di foreground sehingga mem
 **Terminal 2 — Verifikasi enkripsi transparan**
 
 ```bash
-$ mount | grep fuse_mount
-/home/tafidah/.../fuse on /home/tafidah/.../fuse_mount type fuse.fuse \
-(rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
-$ echo "halo" > fuse_mount/halo.txt
-$ cat fuse_mount/halo.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ mount | grep fuse_mount
+/home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse on /home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse_mount type fuse.fuse (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
+5 directories, 9 files
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ echo "halo" > fuse_mount/halo.txt
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat fuse_mount/halo.txt
 halo
-$ cat encrypted_storage/halo.txt.enc
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat encrypted_storage/halo.txt.enc
 ␦|
 ```
 
@@ -429,10 +428,15 @@ Data `"halo\n"` yang ditulis ke `fuse_mount/halo.txt` tersimpan sebagai byte ter
 **Build Docker Image**
 
 ```bash
-$ docker build -t soal-2-modul-4-sisop .
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker build -t soal-2-modul-4-sisop .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  61.95kB
 Step 1/9 : FROM ubuntu:latest
  ---> f3d28607ddd7
-Step 2/9 : RUN apt-get update && apt-get install -y ...
+Step 2/9 : RUN apt-get update &&     apt-get install -y         build-essential         libfuse-dev         fuse         pkg-config         ca-certificates     && rm -rf /var/lib/apt/lists/*
  ---> Using cache
  ---> 36b4bca5c3e2
 Step 3/9 : WORKDIR /app
@@ -440,15 +444,25 @@ Step 3/9 : WORKDIR /app
  ---> bdaa8523c0d5
 Step 4/9 : COPY . /app
  ---> 62c0a18e2d77
-Step 5/9 : RUN gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse ...
+Step 5/9 : RUN gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+ ---> Running in 2409b53df0a2
+ ---> Removed intermediate container 2409b53df0a2
  ---> 9f6742a218a3
 Step 6/9 : RUN gcc -Wall client.c -o client
+ ---> Running in 6cfc47bbe7c6
+ ---> Removed intermediate container 6cfc47bbe7c6
  ---> 9725e903bdf7
 Step 7/9 : RUN mkdir -p /app/db
+ ---> Running in 457f871e1cc8
+ ---> Removed intermediate container 457f871e1cc8
  ---> 143de9dca086
 Step 8/9 : EXPOSE 9000
+ ---> Running in eec992164362
+ ---> Removed intermediate container eec992164362
  ---> 263d074e6079
 Step 9/9 : CMD ["./server"]
+ ---> Running in d26740b22710
+ ---> Removed intermediate container d26740b22710
  ---> 8c51dd989e4c
 Successfully built 8c51dd989e4c
 Successfully tagged soal-2-modul-4-sisop:latest
@@ -457,23 +471,23 @@ Successfully tagged soal-2-modul-4-sisop:latest
 **Menjalankan container dan menggunakan client**
 
 ```bash
-$ docker run -d --privileged --name db_app -p 9000:9000 \
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker run -d --privileged --name db_app -p 9000:9000 \
     -v $(pwd)/fuse_mount:/app/db soal-2-modul-4-sisop
-$ docker ps
-CONTAINER ID   IMAGE                  COMMAND      CREATED          STATUS          PORTS
-d4b049c9674d   soal-2-modul-4-sisop   "./server"   12 seconds ago   Up 12 seconds   0.0.0.0:9000->9000/tcp
-$ gcc client.c -o client
-$ ./client
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker ps
+CONTAINER ID   IMAGE                  COMMAND      CREATED          STATUS          PORTS                                         NAMES
+d4b049c9674d   soal-2-modul-4-sisop   "./server"   12 seconds ago   Up 12 seconds   0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp   db_app
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc client.c -o client
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./client
 Connected to DB Server on port 9000
 Type HELP for available commands
 Type EXIT or QUIT to exit
 
 db > EXIT
 Disconnecting...
-$ docker stop db_app && docker rm db_app
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker stop db_app && docker rm db_app
 db_app
 db_app
-$ fusermount -u fuse_mount
+tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ fusermount -u fuse_mount
 ```
 
 Seluruh alur integrasi berjalan: FUSE berhasil di-mount dan mengenkripsi file secara transparan, Docker image berhasil dibangun dalam 9 step, container berjalan di background dengan bind mount `fuse_mount` ke `/app/db`, dan client berhasil terhubung ke server di port 9000. Setelah selesai, container dihentikan dan FUSE di-unmount menggunakan `fusermount -u`.
