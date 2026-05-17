@@ -1,17 +1,17 @@
 # SISOP-4-2026-IT-025
 
-**Laporan Resmi Praktikum Sistem Operasi**
-**Modul 4 — FUSE (Filesystem in Userspace)**
+## Laporan Resmi Praktikum Sistem Operasi
+### Modul 4 — File System & FUSE
 
-| Nama | Tafidah Hasna Mumtazah |
-|------|------------------------|
-| NRP | 5027251025 |
-| Departemen | Teknologi Informasi |
+| Atribut | Keterangan |
+|---|---|
+| **Nama** | Tafidah Hasna Mumtazah |
+| **NRP** | 5027251025 |
+| **Departemen** | Teknologi Informasi |
 
 ---
 
 ## Daftar Isi
-
 - [Soal 1 — Save Asisten Kenz](#soal-1--save-asisten-kenz)
 - [Soal 2 — Poke MOO](#soal-2--poke-moo)
 
@@ -21,41 +21,13 @@
 
 ### Penjelasan
 
-`kenz_rescue.c` adalah program C yang mengimplementasikan filesystem FUSE (Filesystem in Userspace) untuk "menyelamatkan" Asisten Kenz. Program ini menerima dua argumen — `source_directory` (`amba_files`) dan `mount_directory` (`mnt`) — lalu mem-mount filesystem virtual yang menggabungkan passthrough terhadap file asli dengan sebuah file virtual bernama `tujuan.txt` yang isinya dibangkitkan *on-the-fly* tanpa pernah menyentuh disk.
+`kenz_rescue.c` adalah program C yang mengimplementasikan filesystem FUSE (Filesystem in Userspace) untuk "menyelamatkan" Asisten Kenz. FUSE adalah sebuah interface di mana kita dapat membuat file system sendiri pada userspace Linux. Keuntungannya, kita bisa menggunakan library apapun yang tersedia tanpa perlu mengenali secara mendalam apa yang file system lakukan di kernel space — modul FUSE menjembatani antara kode file system di userspace dengan file system di kernel space. Saat user berurusan dengan operasi seperti `read`, `write`, atau `stat` di mount directory, kernel meneruskan request tersebut ke program FUSE melalui `/dev/fuse`, lalu program merespons kembali ke user.
 
-File `1.txt` sampai `7.txt` disajikan secara identik (passthrough) dengan sumber di `amba_files/`, sementara `tujuan.txt` tidak pernah ada di direktori sumber — isinya dirangkai saat dibaca dengan mengumpulkan semua baris berawalan `KOORD:` dari ketujuh file log secara berurutan, membentuk koordinat ritual lengkap yang harus ditemukan Sebastian untuk menyelamatkan Asisten Kenz sebelum di-commit ke alam baka.
+Program menerima dua argumen: `source_directory` (`amba_files`) dan `mount_directory` (`mnt`). Secara garis besar, program ini melakukan dua hal: menyajikan file `1.txt` sampai `7.txt` secara identik (passthrough) dengan sumber di `amba_files/`, dan menambahkan satu file virtual bernama `tujuan.txt` yang isinya dibangkitkan secara *on-the-fly* tanpa pernah ditulis ke disk. Isi `tujuan.txt` dirangkai dengan mengumpulkan semua baris berawalan `KOORD:` dari ketujuh file log secara berurutan untuk membentuk koordinat ritual lengkap yang harus ditemukan Sebastian untuk menyelamatkan Asisten Kenz.
 
----
+Program ini mengimplementasikan tiga fungsi wajib FUSE yang terdaftar dalam `struct fuse_operations`, yaitu `getattr` (dipanggil saat sistem mencoba mendapatkan atribut file), `readdir` (dipanggil saat user menampilkan isi direktori), dan `read` (dipanggil saat sistem membaca data dari file), ditambah `open` sebagai fungsi pendukung.
 
-### Implementasi FUSE Operations
-
-#### Argumen dan Inisialisasi
-
-Program memvalidasi dua argumen wajib (`source_directory` dan `mount_directory`). Source directory diubah menjadi absolute path menggunakan `realpath()` lalu disimpan di variabel global `source_dir`. Argumen kemudian di-shift sehingga `fuse_main` hanya melihat program name dan mount_directory sebagaimana yang diharapkan FUSE.
-
-```c
-int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <source_directory> <mount_directory>\n", argv[0]);
-        return 1;
-    }
-
-    if (realpath(argv[1], source_dir) == NULL) { perror("realpath"); return 1; }
-
-    /* Shift argv: hapus argv[1] agar fuse_main hanya lihat mount_dir */
-    int fuse_argc = argc - 1;
-    char **fuse_argv = malloc(sizeof(char *) * fuse_argc);
-    fuse_argv[0] = argv[0];
-    for (int i = 1; i < fuse_argc; i++) fuse_argv[i] = argv[i + 1];
-
-    umask(0);
-    return fuse_main(fuse_argc, fuse_argv, &kenz_oper, NULL);
-}
-```
-
-#### generate_tujuan_content — Koordinat On-the-Fly
-
-Fungsi inti yang membangkitkan isi `tujuan.txt`. Fungsi membuka `1.txt` sampai `7.txt` secara berurutan, membaca baris per baris, dan hanya mengambil baris yang diawali `"KOORD:"`. Seluruh fragmen tersebut dirangkai ke satu buffer di memori dan dikembalikan ke pemanggil — tidak ada file baru yang ditulis ke disk, sehingga `amba_files/` tidak berubah sama sekali.
+### Fungsi `generate_tujuan_content` — Pembangkit Koordinat
 
 ```c
 static char *generate_tujuan_content(void) {
@@ -83,14 +55,18 @@ static char *generate_tujuan_content(void) {
 }
 ```
 
-#### kenz_getattr — Atribut File
+Fungsi ini adalah inti dari file virtual `tujuan.txt`. Ia membuka `1.txt` sampai `7.txt` dari `source_dir` secara berurutan, membaca baris per baris, dan hanya mengambil baris yang diawali `"KOORD:"`. Seluruh fragmen koordinat tersebut dirangkai ke satu buffer di memori menggunakan `memcpy` lalu dikembalikan ke pemanggil. Tidak ada file baru yang ditulis ke disk sehingga `amba_files/` tidak berubah sama sekali. Pemanggil wajib membebaskan buffer ini dengan `free()` setelah selesai.
 
-Dipanggil kernel setiap kali ada query atribut (`ls`, `stat`). Untuk root directory, diisi sebagai direktori standar. Untuk `tujuan.txt` (file virtual), stat dibuat secara manual: mode read-only (`0444`), ukuran dihitung dari panjang konten on-the-fly, dan timestamp di-set ke epoch sebagai penanda bahwa file ini tidak benar-benar ada di disk. File lain diteruskan ke `lstat()` pada source directory (passthrough).
+### Fungsi `kenz_getattr` — Atribut File
 
 ```c
 static int kenz_getattr(const char *path, struct stat *stbuf) {
+    memset(stbuf, 0, sizeof(struct stat));
+
     if (strcmp(path, "/") == 0) {
-        stbuf->st_mode = S_IFDIR | 0755; stbuf->st_nlink = 2; return 0;
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;
+        return 0;
     }
 
     if (is_virtual(path)) {
@@ -110,9 +86,9 @@ static int kenz_getattr(const char *path, struct stat *stbuf) {
 }
 ```
 
-#### kenz_readdir — Listing Direktori
+`getattr` adalah fungsi FUSE wajib yang dipanggil kernel setiap kali ada query atribut seperti `ls` atau `stat`. Fungsi ini menangani tiga kasus: root directory diisi sebagai direktori standar dengan mode `0755`; `tujuan.txt` mendapat stat buatan manual dengan mode read-only `0444`, ukuran dihitung dari panjang konten *on-the-fly*, dan timestamp di-set ke epoch sebagai penanda file ini tidak ada di disk; dan file lainnya diteruskan ke `lstat()` pada source directory sebagai passthrough murni.
 
-Membuka source directory di `encrypted_storage` dan mendaftarkan seluruh isinya via `filler()`. Setelah semua entry asli terdaftar, `tujuan.txt` diinjeksikan secara manual ke daftar hanya ketika path yang di-list adalah root (`"/"`). Akibatnya, `ls mnt/` menampilkan delapan entry (`1.txt`–`7.txt` + `tujuan.txt`) sementara `ls amba_files/` tetap tujuh.
+### Fungsi `kenz_readdir` — Listing Direktori
 
 ```c
 static int kenz_readdir(const char *path, void *buf,
@@ -128,12 +104,12 @@ static int kenz_readdir(const char *path, void *buf,
     struct dirent *de;
     while ((de = readdir(dp)) != NULL) {
         struct stat st = {0};
-        st.st_ino = de->d_ino; st.st_mode = de->d_type << 12;
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
         if (filler(buf, de->d_name, &st, 0)) break;
     }
     closedir(dp);
 
-    /* Inject file virtual hanya di root */
     if (strcmp(path, "/") == 0)
         filler(buf, VIRTUAL_FILE, NULL, 0);
 
@@ -141,9 +117,9 @@ static int kenz_readdir(const char *path, void *buf,
 }
 ```
 
-#### kenz_read — Baca File
+`readdir` adalah fungsi FUSE wajib yang dipanggil saat user mencoba menampilkan file dan direktori pada suatu direktori. Ia membuka source directory, mendaftarkan seluruh isinya ke kernel via `filler()`, lalu setelah semua entry asli selesai, menginjeksikan `tujuan.txt` secara manual hanya ketika path yang di-list adalah root (`"/"`). Akibatnya, `ls mnt/` menampilkan delapan entry (`1.txt`–`7.txt` + `tujuan.txt`) sementara `ls amba_files/` tetap tujuh, sesuai permintaan soal.
 
-Untuk `tujuan.txt`, konten dihasilkan oleh `generate_tujuan_content()`, lalu disalin ke buffer sesuai offset dan ukuran yang diminta kernel — persis seperti membaca file biasa, tetapi seluruhnya dilakukan dalam memori. Untuk file lain, `pread()` diteruskan langsung ke file descriptor di source directory.
+### Fungsi `kenz_read` — Membaca File
 
 ```c
 static int kenz_read(const char *path, char *buf, size_t size,
@@ -173,14 +149,45 @@ static int kenz_read(const char *path, char *buf, size_t size,
 }
 ```
 
+`read` adalah fungsi FUSE wajib yang dipanggil saat sistem mencoba membaca potongan demi potongan data dari suatu file. Untuk `tujuan.txt`, konten dihasilkan oleh `generate_tujuan_content()` lalu disalin ke buffer kernel sesuai `offset` dan `size` yang diminta — seluruhnya terjadi di memori tanpa menyentuh disk. Untuk file lain, `pread()` diteruskan langsung ke file descriptor di source directory. Penggunaan `pread()` penting agar pembacaan bisa dimulai dari posisi tertentu tanpa memindahkan file pointer global.
+
+### Fungsi `main` — Inisialisasi FUSE
+
+```c
+int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <source_directory> <mount_directory>\n", argv[0]);
+        return 1;
+    }
+
+    if (realpath(argv[1], source_dir) == NULL) {
+        perror("realpath source_directory");
+        return 1;
+    }
+
+    int fuse_argc = argc - 1;
+    char **fuse_argv = malloc(sizeof(char *) * fuse_argc);
+    fuse_argv[0] = argv[0];
+    for (int i = 1; i < fuse_argc; i++) fuse_argv[i] = argv[i + 1];
+
+    umask(0);
+    int ret = fuse_main(fuse_argc, fuse_argv, &kenz_oper, NULL);
+    free(fuse_argv);
+    return ret;
+}
+```
+
+`fuse_main()` adalah fungsi utama FUSE di userspace: ia memanggil `fuse_mount()` untuk membuat UNIX domain socket, lalu `fuse_loop()` yang membaca file system calls dari `/dev/fuse` secara terus-menerus. Program memvalidasi dua argumen wajib, mengubah `source_directory` menjadi absolute path menggunakan `realpath()`, lalu men-shift argv agar `fuse_main` hanya melihat program name dan mount_directory. Tanpa shift ini, `fuse_main` akan salah menginterpretasikan `source_directory` sebagai opsi FUSE.
+
 ### Output
 
-```
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cp "/mnt/c/Users/Fujitsu Lifebook/Downloads/amba_files.zip" ~/SISOP-4-2026-IT-025/soal_1/amba_files.zip
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls
+**Kompilasi dan persiapan**
+
+```bash
+$ gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
+$ ls
 amba_files.zip  kenz_rescue.c
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ gcc -Wall `pkg-config fuse --cflags` kenz_rescue.c -o kenz_rescue `pkg-config fuse --libs`
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ unzip amba_files.zip
+$ unzip amba_files.zip
 Archive:  amba_files.zip
    creating: amba_files/
   inflating: amba_files/4.txt
@@ -190,12 +197,26 @@ Archive:  amba_files.zip
   inflating: amba_files/6.txt
   inflating: amba_files/2.txt
   inflating: amba_files/1.txt
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ rm amba_files.zip
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ mkdir mnt
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ./kenz_rescue amba_files mnt
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ ls mnt
+$ rm amba_files.zip
+$ mkdir mnt
+$ ./kenz_rescue amba_files mnt
+```
+
+**Listing mount point vs source directory**
+
+```bash
+$ ls mnt
 1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt  tujuan.txt
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/1.txt
+$ ls amba_files
+1.txt  2.txt  3.txt  4.txt  5.txt  6.txt  7.txt
+```
+
+`tujuan.txt` muncul di `mnt/` tetapi tidak ada di `amba_files/`, membuktikan file virtual berhasil diinjeksikan oleh `kenz_readdir` tanpa mengubah source directory.
+
+**Verifikasi passthrough dan koordinat ritual**
+
+```bash
+$ cat mnt/1.txt
 === HARI 1 ===
 
 Hari pertama ekspedisi pertama. Saya berangkat dari Tembok Ratapan Keputih jam 5 pagi.
@@ -205,12 +226,15 @@ KOORD: -7.957
 
 Sampai nanti, paman.
 -- Amba
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ diff mnt/1.txt amba_files/1.txt && echo "1.txt OK"
+$ diff mnt/1.txt amba_files/1.txt && echo "1.txt OK"
 1.txt OK
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cat mnt/tujuan.txt
+$ cat mnt/tujuan.txt
 Tujuan Mas Amba:  -7.957 382728 443728,  112.469 8688227961,  23: 59 WIB
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ fusermount -u mnt
+$ fusermount -u mnt
 ```
+
+Isi `mnt/1.txt` identik byte-per-byte dengan `amba_files/1.txt` (diff tidak menghasilkan perbedaan). Isi `tujuan.txt` dirangkai secara *on-the-fly* dari baris `KOORD:` di ketujuh file tanpa pernah ditulis ke disk. Untuk unmount FUSE digunakan `fusermount -u [direktori tujuan]` yang menginformasikan ke sistem untuk menyelesaikan semua operasi yang masih tertunda sebelum melepas filesystem.
+
 ### Kendala
 
 Tidak ditemukan kendala selama pengerjaan.
@@ -221,20 +245,11 @@ Tidak ditemukan kendala selama pengerjaan.
 
 ### Penjelasan
 
-Soal 2 meminta pembuatan ekosistem mini database service yang terdiri dari tiga komponen utama:
-- **`fuse.c`** — filesystem FUSE berenkripsi
-- **`client.c`** — TCP client untuk berinteraksi dengan server mini-database
-- **`Dockerfile`** — untuk mengontainerisasi seluruh aplikasi
+Soal 2 meminta pembuatan ekosistem mini database service yang memanfaatkan FUSE lebih dari sekadar passthrough. `fuse.c` mengimplementasikan filesystem FUSE yang berfungsi sebagai lapisan enkripsi transparan, menghubungkan dua direktori: `encrypted_storage` sebagai direktori asli tempat file disimpan terenkripsi dengan ekstensi `.enc`, dan `fuse_mount` sebagai mount point tempat file terlihat terdekripsi dengan nama aslinya. Enkripsi menggunakan algoritma XOR dengan kunci tetap `0x76` — karena XOR bersifat simetris (`data ⊕ key ⊕ key = data`), fungsi enkripsi dan dekripsi identik, cukup satu fungsi `xor_buffer()`. Ini adalah contoh konkret dari pernyataan di materi bahwa FUSE dapat diimplementasikan "lebih dari sekadar pure passthrough" dengan menambahkan fitur seperti enkripsi file secara transparan.
 
-Komponen `fuse.c` menghubungkan dua direktori: `encrypted_storage` (direktori asli, tempat file disimpan terenkripsi dengan ekstensi `.enc`) dan `fuse_mount` (mount point, di mana file terlihat dalam keadaan terdekripsi). Enkripsi menggunakan algoritma XOR dengan kunci tetap `0x76`. Karena operasi XOR bersifat simetris (`data ⊕ key ⊕ key = data`), fungsi enkripsi dan dekripsi identik, sehingga cukup satu fungsi `xor_buffer()` untuk keduanya.
+Seluruh ekosistem kemudian dikontainerisasi menggunakan Docker. Docker adalah platform yang memungkinkan pengembang mengemas aplikasi beserta dependensinya ke dalam container yang dapat dijalankan secara konsisten di berbagai lingkungan. Berbeda dengan virtualisasi yang memerlukan sistem operasi penuh untuk setiap mesin virtual, container berbagi kernel OS host sehingga lebih ringan dan proses start-up lebih cepat. Integrasi FUSE dengan Docker dilakukan melalui mekanisme bind mount: direktori `fuse_mount` di host di-mount ke dalam container menggunakan `-v $(pwd)/fuse_mount:/app/db`, sehingga server di dalam container dapat mengakses file melalui lapisan enkripsi FUSE secara transparan. Selain `fuse.c` dan `Dockerfile`, juga dibuat `client.c` sebagai TCP client untuk berinteraksi dengan server mini-database di port 9000.
 
----
-
-### fuse.c — FUSE Encrypted Filesystem
-
-#### Mekanisme Enkripsi XOR
-
-Enkripsi XOR dipilih karena sifatnya yang simetris: satu operasi bitwise yang sama berlaku untuk mengenkripsi maupun mendekripsi. Kunci `0x76` di-XOR-kan ke setiap byte file saat write (menyimpan ke `encrypted_storage`) dan saat read (menampilkan ke `fuse_mount`). Panjang file tidak berubah karena XOR adalah operasi bit-for-bit.
+### Fungsi `xor_buffer` — Enkripsi XOR
 
 ```c
 #define XOR_KEY 0x76
@@ -245,11 +260,13 @@ static void xor_buffer(char *buf, size_t size) {
 }
 ```
 
-#### Mapping Nama File (.enc)
+Satu fungsi ini menangani baik enkripsi maupun dekripsi karena XOR adalah operasi invers terhadap dirinya sendiri: `data ⊕ key ⊕ key = data`. Kunci `0x76` di-XOR-kan ke setiap byte data secara berurutan. Panjang data tidak berubah karena XOR adalah operasi bit-for-bit tanpa padding, sehingga ukuran file `.enc` di `encrypted_storage` selalu identik dengan ukuran file aslinya.
 
-File yang ditulis ke `fuse_mount` dengan nama `foo.txt` akan disimpan di `encrypted_storage` sebagai `foo.txt.enc`. Saat `readdir`, nama file di-strip dari suffix `.enc` sebelum ditampilkan ke pengguna. Dua helper function menangani translasi path ini.
+### Fungsi `enc_path` dan `enc_file_path` — Translasi Path
 
 ```c
+static const char *ENCRYPTED_DIR = "./encrypted_storage";
+
 static void enc_path(char *out, size_t size, const char *fuse_path) {
     snprintf(out, size, "%s%s", ENCRYPTED_DIR, fuse_path);
 }
@@ -259,13 +276,14 @@ static void enc_file_path(char *out, size_t size, const char *fuse_path) {
 }
 ```
 
-#### xmp_getattr — Atribut File/Direktori
+Dua helper function ini menangani seluruh translasi nama antara dunia `fuse_mount` (nama tampilan, tanpa `.enc`) dan dunia `encrypted_storage` (nama fisik, dengan `.enc`). `enc_path` digunakan untuk direktori, sementara `enc_file_path` digunakan untuk file reguler. Konsistensi penggunaan dua fungsi ini di seluruh operasi FUSE (`getattr`, `readdir`, `open`, `read`, `write`, `truncate`, `unlink`) memastikan tidak ada inkonsistensi nama di antara operasi-operasi tersebut.
 
-Fungsi mencoba `stat` dua kali: pertama sebagai direktori (tanpa `.enc`), lalu sebagai file terenkripsi (dengan `.enc`). Ukuran file yang dikembalikan ke kernel adalah ukuran file `.enc` di disk — karena XOR tidak mengubah panjang data, ukuran ini identik dengan ukuran data aslinya.
+### Fungsi `xmp_getattr` — Atribut File/Direktori
 
 ```c
 static int xmp_getattr(const char *path, struct stat *stbuf) {
     memset(stbuf, 0, sizeof(struct stat));
+
     char dpath[4096];
     enc_path(dpath, sizeof(dpath), path);
     if (lstat(dpath, stbuf) == 0) return 0;
@@ -278,9 +296,9 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
 }
 ```
 
-#### xmp_readdir — Listing Transparan
+`getattr` mencoba dua kali: pertama path sebagai direktori (tanpa `.enc`) — jika berhasil langsung kembalikan hasilnya. Jika tidak, coba sebagai file terenkripsi (dengan `.enc`). Ukuran yang dilaporkan ke kernel adalah ukuran file `.enc` di disk, yang identik dengan ukuran data aslinya karena XOR tidak mengubah panjang data. Jika keduanya gagal, kembalikan `-ENOENT`.
 
-Saat membaca direktori, setiap entri dengan suffix `.enc` ditampilkan tanpa suffix tersebut menggunakan `strncpy` dengan panjang `(namelen - 4)`. Entri tanpa `.enc` (seperti `'.'` dan `'..'`, atau subdirektori) ditampilkan apa adanya.
+### Fungsi `xmp_readdir` — Listing Transparan
 
 ```c
 while ((de = readdir(dp)) != NULL) {
@@ -298,16 +316,16 @@ while ((de = readdir(dp)) != NULL) {
 }
 ```
 
-#### xmp_read dan xmp_write — Enkripsi/Dekripsi Otomatis
+Saat pengguna menjalankan `ls` pada `fuse_mount`, `readdir` membaca isi `encrypted_storage` dan melakukan transformasi nama secara transparan: setiap entri berakhiran `.enc` ditampilkan tanpa suffix tersebut menggunakan `strncpy` dengan panjang `(namelen - 4)`. Entri lain seperti `.`, `..`, dan subdirektori ditampilkan apa adanya. Hasilnya pengguna melihat nama file bersih tanpa mengetahui adanya file `.enc` di baliknya.
 
-`xmp_read` membaca file `.enc` dari disk lalu mendekripsi hasilnya dengan `xor_buffer()` sebelum mengembalikan data ke kernel. `xmp_write` melakukan kebalikannya: menyalin buffer dari kernel, mengenkripsinya dengan `xor_buffer()`, lalu menulis hasil XOR ke file `.enc` di `encrypted_storage`. Buffer caller tidak dimodifikasi karena write menggunakan salinan terpisah.
+### Fungsi `xmp_read` dan `xmp_write` — Enkripsi/Dekripsi Otomatis
 
 ```c
 static int xmp_read(const char *path, char *buf, size_t size,
                     off_t offset, struct fuse_file_info *fi) {
     int fd = fi->fh ? fi->fh : open(enc_file, O_RDONLY);
     int res = pread(fd, buf, size, offset);
-    if (res > 0) xor_buffer(buf, res);   /* dekripsi */
+    if (res > 0) xor_buffer(buf, res);   /* dekripsi on-the-fly */
     if (!fi->fh) close(fd);
     return res;
 }
@@ -316,20 +334,18 @@ static int xmp_write(const char *path, const char *buf, size_t size,
                      off_t offset, struct fuse_file_info *fi) {
     char *enc_buf = malloc(size);
     memcpy(enc_buf, buf, size);
-    xor_buffer(enc_buf, size);           /* enkripsi */
+    xor_buffer(enc_buf, size);           /* enkripsi sebelum tulis */
     int res = pwrite(fd, enc_buf, size, offset);
     free(enc_buf);
     return res;
 }
 ```
 
----
+`xmp_read` membaca data terenkripsi dari file `.enc` menggunakan `pread()`, lalu mendekripsinya dengan `xor_buffer()` sebelum dikembalikan ke kernel. `xmp_write` melakukan kebalikannya: karena buffer dari kernel tidak boleh dimodifikasi, dibuat salinan dengan `malloc()`, disalin dengan `memcpy()`, dienkripsi dengan `xor_buffer()`, baru ditulis ke file `.enc` menggunakan `pwrite()`. Buffer salinan dibebaskan setelah selesai untuk mencegah memory leak.
 
-### client.c — TCP Client Mini Database
+### `client.c` — TCP Client Mini Database
 
-#### Koneksi ke Server
-
-`client.c` membangun koneksi TCP ke server mini-database di `127.0.0.1:9000` menggunakan socket standar POSIX. Setelah terhubung, program masuk ke loop interaktif yang menampilkan prompt `db >` dan membaca perintah dari stdin.
+`client.c` membangun koneksi TCP ke server mini-database di `127.0.0.1:9000` menggunakan socket standar POSIX. Setelah terhubung, program masuk ke loop interaktif yang menampilkan prompt `db >` dan membaca perintah dari stdin. Setiap input dikirim ke server dengan newline sebagai terminator, dan respons server dibaca menggunakan `select()` dengan timeout 10ms untuk mendeteksi akhir respons tanpa terblokir. Perintah `EXIT` dan `QUIT` ditangani secara lokal untuk memutus koneksi dengan bersih.
 
 ```c
 sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -337,13 +353,7 @@ server_addr.sin_family = AF_INET;
 server_addr.sin_port   = htons(9000);
 inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
-```
 
-#### Loop Interaktif
-
-Setiap input dari pengguna dikirim ke server dengan newline sebagai terminator. Respons server dibaca menggunakan `select()` dengan timeout 10ms untuk mendeteksi akhir respons tanpa terblokir selamanya. Perintah `EXIT` dan `QUIT` ditangani secara lokal untuk memutus koneksi dengan bersih.
-
-```c
 while (1) {
     printf("db > "); fflush(stdout);
     fgets(send_buf, sizeof(send_buf), stdin);
@@ -364,11 +374,9 @@ while (1) {
 }
 ```
 
----
+### `Dockerfile` — Kontainerisasi dengan Docker
 
-### Dockerfile — Kontainerisasi
-
-Dockerfile menggunakan base image `ubuntu:latest` dan menginstal seluruh dependensi yang dibutuhkan (`build-essential`, `libfuse-dev`, `pkg-config`) saat build time. Source code di-copy ke `/app`, dikompilasi di dalam container, direktori database `/app/db` dibuat, dan PORT 9000 di-expose. Container menjalankan binary server saat start.
+Dockerfile adalah file teks berisi instruksi untuk membangun sebuah Docker Image. Image bersifat immutable: setiap instruksi membuat layer baru yang di-cache, sehingga build berikutnya lebih cepat jika layer tidak berubah. Docker Image kemudian digunakan untuk membuat Docker Container — instance yang berjalan dari image tersebut.
 
 ```dockerfile
 FROM ubuntu:latest
@@ -388,33 +396,43 @@ EXPOSE 9000
 CMD ["./server"]
 ```
 
+`FROM ubuntu:latest` menetapkan base image. Instruksi `RUN apt-get` menginstal semua dependensi — `build-essential` menyediakan gcc dan toolchain, `libfuse-dev` menyediakan header dan library FUSE — lalu membersihkan cache apt untuk meminimalkan ukuran image. `WORKDIR /app` menetapkan direktori kerja, `COPY . /app` menyalin source code ke dalam image, dua `RUN gcc` mengompilasi `fuse.c` dan `client.c` saat image dibangun, dan `EXPOSE 9000` mendokumentasikan port yang digunakan container. Integrasi dengan FUSE dilakukan saat container dijalankan: `fuse_mount` di host di-bind mount ke `/app/db` di dalam container menggunakan flag `-v $(pwd)/fuse_mount:/app/db`, sehingga semua operasi file server otomatis melewati lapisan enkripsi FUSE.
+
 ### Output
 
-```
-TERMINAL 1
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_1$ cd ../soal_2
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ls
+**Terminal 1 — Compile dan mount FUSE**
+
+```bash
+$ gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
+$ ls
 Dockerfile  client.c  encrypted_storage  fuse.c  fuse_mount  server
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./fuse -f fuse_mount
+$ ./fuse -f fuse_mount
+```
 
-TERMINAL 2
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ mount | grep fuse_mount
-/home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse on /home/tafidah/SISOP-4-2026-IT-025/soal_2/fuse_mount type fuse.fuse (rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
-5 directories, 9 files
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ echo "halo" > fuse_mount/halo.txt
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat fuse_mount/halo.txt
+Flag `-f` digunakan untuk menjaga FUSE tetap berjalan di foreground sehingga memudahkan debugging dengan `printf`.
+
+**Terminal 2 — Verifikasi enkripsi transparan**
+
+```bash
+$ mount | grep fuse_mount
+/home/tafidah/.../fuse on /home/tafidah/.../fuse_mount type fuse.fuse \
+(rw,nosuid,nodev,relatime,user_id=1000,group_id=1000)
+$ echo "halo" > fuse_mount/halo.txt
+$ cat fuse_mount/halo.txt
 halo
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ cat encrypted_storage/halo.txt.enc
-␦|tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker build -t soal-2-modul-4-sisop .
-DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
-            Install the buildx component to build images with BuildKit:
-            https://docs.docker.com/go/buildx/
+$ cat encrypted_storage/halo.txt.enc
+␦|
+```
 
-Sending build context to Docker daemon  61.95kB
+Data `"halo\n"` yang ditulis ke `fuse_mount/halo.txt` tersimpan sebagai byte terenkripsi di `encrypted_storage/halo.txt.enc` (karakter `␦|` adalah hasil XOR dari `"halo\n"` dengan kunci `0x76`), namun terbaca normal kembali melalui mount point. Ini membuktikan enkripsi dan dekripsi berjalan secara transparan.
+
+**Build Docker Image**
+
+```bash
+$ docker build -t soal-2-modul-4-sisop .
 Step 1/9 : FROM ubuntu:latest
  ---> f3d28607ddd7
-Step 2/9 : RUN apt-get update &&     apt-get install -y         build-essential         libfuse-dev         fuse         pkg-config         ca-certificates     && rm -rf /var/lib/apt/lists/*
+Step 2/9 : RUN apt-get update && apt-get install -y ...
  ---> Using cache
  ---> 36b4bca5c3e2
 Step 3/9 : WORKDIR /app
@@ -422,47 +440,43 @@ Step 3/9 : WORKDIR /app
  ---> bdaa8523c0d5
 Step 4/9 : COPY . /app
  ---> 62c0a18e2d77
-Step 5/9 : RUN gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse $(pkg-config fuse --libs)
- ---> Running in 2409b53df0a2
- ---> Removed intermediate container 2409b53df0a2
+Step 5/9 : RUN gcc -Wall $(pkg-config fuse --cflags) fuse.c -o fuse ...
  ---> 9f6742a218a3
 Step 6/9 : RUN gcc -Wall client.c -o client
- ---> Running in 6cfc47bbe7c6
- ---> Removed intermediate container 6cfc47bbe7c6
  ---> 9725e903bdf7
 Step 7/9 : RUN mkdir -p /app/db
- ---> Running in 457f871e1cc8
- ---> Removed intermediate container 457f871e1cc8
  ---> 143de9dca086
 Step 8/9 : EXPOSE 9000
- ---> Running in eec992164362
- ---> Removed intermediate container eec992164362
  ---> 263d074e6079
 Step 9/9 : CMD ["./server"]
- ---> Running in d26740b22710
- ---> Removed intermediate container d26740b22710
  ---> 8c51dd989e4c
 Successfully built 8c51dd989e4c
 Successfully tagged soal-2-modul-4-sisop:latest
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker run -d   --privileged   --name db_app   -p 9000:9000   -v $(pwd)/fuse_mount:/app/db   soal-2-modul-4-sisop
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker ps
-CONTAINER ID   IMAGE                  COMMAND      CREATED          STATUS          PORTS                                         NAMES
-d4b049c9674d   soal-2-modul-4-sisop   "./server"   12 seconds ago   Up 12 seconds   0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp   db_app
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ gcc client.c -o client
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ ./client
+```
+
+**Menjalankan container dan menggunakan client**
+
+```bash
+$ docker run -d --privileged --name db_app -p 9000:9000 \
+    -v $(pwd)/fuse_mount:/app/db soal-2-modul-4-sisop
+$ docker ps
+CONTAINER ID   IMAGE                  COMMAND      CREATED          STATUS          PORTS
+d4b049c9674d   soal-2-modul-4-sisop   "./server"   12 seconds ago   Up 12 seconds   0.0.0.0:9000->9000/tcp
+$ gcc client.c -o client
+$ ./client
 Connected to DB Server on port 9000
 Type HELP for available commands
 Type EXIT or QUIT to exit
 
 db > EXIT
 Disconnecting...
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ docker stop db_app && docker rm db_app
+$ docker stop db_app && docker rm db_app
 db_app
 db_app
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ fusermount -u fuse_mount
-tafidah@DESKTOP-DFFGK1U:~/SISOP-4-2026-IT-025/soal_2$ rm client
-
+$ fusermount -u fuse_mount
 ```
+
+Seluruh alur integrasi berjalan: FUSE berhasil di-mount dan mengenkripsi file secara transparan, Docker image berhasil dibangun dalam 9 step, container berjalan di background dengan bind mount `fuse_mount` ke `/app/db`, dan client berhasil terhubung ke server di port 9000. Setelah selesai, container dihentikan dan FUSE di-unmount menggunakan `fusermount -u`.
 
 ### Kendala
 
